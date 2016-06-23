@@ -28,6 +28,7 @@ const consoleStrings = require('../constants/console')
 const { aboutUrls, isSourceAboutUrl, isTargetAboutUrl, getTargetAboutUrl, getBaseUrl } = require('../lib/appUrlUtil')
 const { isFrameError } = require('../lib/errorUtil')
 const locale = require('../l10n')
+const { getSiteSettingsForHostPattern } = require('../state/siteSettings')
 
 class Frame extends ImmutableComponent {
   constructor () {
@@ -90,9 +91,30 @@ class Frame extends ImmutableComponent {
     return !!(hack && hack.allowRunningInsecureContent)
   }
 
-  allowRunningPlugins () {
-    let host = urlParse(this.props.frame.get('location')).host
-    return !!(host && this.flashAllowedHosts[host])
+  allowRunningPlugins (host) {
+    host = host || urlParse(this.props.frame.get('location')).host
+    if (!host) {
+      return false
+    }
+    // Check banner-whitelisted hosts
+    if (this.flashAllowedHosts[host]) {
+      return true
+    }
+    // Check for at least one CtP allowed on this origin
+    if (!this.props.allSiteSettings) {
+      return false
+    }
+    const activeSiteSettings = getSiteSettingsForHostPattern(this.props.allSiteSettings,
+                                                             this.origin)
+    if (typeof activeSiteSettings.get('flash') === 'number') {
+      if (activeSiteSettings.get('flash') < Date.now()) {
+        // Expired entry. Remove it.
+        ipc.send(messages.CHANGE_SITE_SETTING, this.origin, 'flash', undefined)
+      }
+      return true
+    }
+
+    return false
   }
 
   updateWebview (cb) {
@@ -462,6 +484,21 @@ class Frame extends ImmutableComponent {
       method.apply(this, e.args)
     })
 
+    const reloadWithFlashAllowed = (parsedUrl) => {
+      this.webview.stop()
+      parsedUrl.search = parsedUrl.search || 'brave_flash_allowed'
+      if (!parsedUrl.search.includes('brave_flash_allowed')) {
+        parsedUrl.search = parsedUrl.search + '&brave_flash_allowed'
+      }
+      windowActions.loadUrl(this.props.frame, parsedUrl.format())
+    }
+
+    const reloadWithFlashDisallowed = (parsedUrl) => {
+      this.webview.stop()
+      parsedUrl.search = parsedUrl.search.replace(/(\?|&)?brave_flash_allowed/, '')
+      windowActions.loadUrl(this.props.frame, parsedUrl.format())
+    }
+
     const interceptFlash = (url) => {
       this.webview.stop()
       // Generate a random string that is unlikely to collide. Not
@@ -485,11 +522,7 @@ class Frame extends ImmutableComponent {
         this.notificationCallbacks[message] = (buttonIndex) => {
           if (buttonIndex === 1) {
             this.flashAllowedHosts[host] = true
-            parsedUrl.search = parsedUrl.search || 'brave_flash_allowed'
-            if (!parsedUrl.search.includes('brave_flash_allowed')) {
-              parsedUrl.search = parsedUrl.search + '&brave_flash_allowed'
-            }
-            windowActions.loadUrl(this.props.frame, parsedUrl.format())
+            reloadWithFlashAllowed(parsedUrl)
           } else {
             appActions.hideMessageBox(message)
           }
@@ -518,12 +551,11 @@ class Frame extends ImmutableComponent {
         interceptFlash(e.url)
       }
       // Make sure a page that is trying to run Flash is actually allowed
-      if (parsedUrl.search && parsedUrl.search.includes('brave_flash_allowed')) {
-        if (!(parsedUrl.host in this.flashAllowedHosts)) {
-          this.webview.stop()
-          parsedUrl.search = parsedUrl.search.replace(/(\?|&)?brave_flash_allowed/, '')
-          windowActions.loadUrl(this.props.frame, parsedUrl.format())
-        }
+      const pluginsAllowed = this.allowRunningPlugins(parsedUrl.host)
+      if (parsedUrl.search && parsedUrl.search.includes('brave_flash_allowed') && !pluginsAllowed) {
+        reloadWithFlashDisallowed(parsedUrl)
+      } else if (pluginsAllowed) {
+        reloadWithFlashAllowed(parsedUrl)
       }
       if (e.isMainFrame && !e.isErrorPage && !e.isFrameSrcDoc) {
         windowActions.onWebviewLoadStart(this.props.frame, e.url)

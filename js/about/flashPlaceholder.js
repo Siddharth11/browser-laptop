@@ -7,28 +7,32 @@ const ImmutableComponent = require('../components/immutableComponent')
 
 require('../../less/about/flash.less')
 
+const isDarwin = window.navigator.platform === 'MacIntel'
+
 class FlashPlaceholder extends ImmutableComponent {
-  constructor () {
-    super()
-    this.state = {
-      siteOrigin: 'foo',
-      sourceOrigin: 'bar'
+  get origin () {
+    // XXX: This is not necessarily the source of the flash, since the
+    // untrusted page can change the URL fragment. However, the user is
+    // aware what source they are approving for.
+    let parts = window.location.href.split('#')
+    if (parts && parts[1]) {
+      return parts[1]
+    } else {
+      return null
     }
   }
 
   render () {
     // TODO: Localization doesn't work due to CORS error from inside iframe
-    const flashRightClick = 'Right-click to run Adobe Flash'
-    const flashSubtext = `from ${this.state.sourceOrigin} on ${this.state.siteOrigin}.`
+    const cmd = isDarwin ? 'Ctrl-click' : 'Right-click'
+    const flashRightClick = `${cmd} to run Adobe Flash`
     const flashExpirationText = 'Approvals expire 7 days after last site visit.'
+    const flashSubtext = `on ${this.flashOrigin || 'this site'}.`
     return <div>
       <div className='flashMainContent'>
         <img src='img/bravePluginAlert.png' />
         <div id='flashRightClick'>{flashRightClick}</div>
-        <div className='flashSubtext' data-l10n-args={JSON.stringify({
-          source: this.state.sourceOrigin,
-          site: this.state.siteOrigin
-        })}>{flashSubtext}</div>
+        <div className='flashSubtext'>{flashSubtext}</div>
       </div>
       <div className='flashFooter'>
         {flashExpirationText}

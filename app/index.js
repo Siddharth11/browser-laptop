@@ -392,8 +392,8 @@ app.on('ready', () => {
       appActions.changeSetting(key, value)
     })
 
-    ipcMain.on(messages.CHANGE_SITE_SETTING, (e, hostPattern, key, value) => {
-      appActions.changeSiteSetting(hostPattern, key, value)
+    ipcMain.on(messages.CHANGE_SITE_SETTING, (e, hostPattern, key, value, temp) => {
+      appActions.changeSiteSetting(hostPattern, key, value, temp)
     })
 
     ipcMain.on(messages.SET_CLIPBOARD, (e, text) => {

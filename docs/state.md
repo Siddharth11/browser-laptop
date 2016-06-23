@@ -47,7 +47,8 @@ AppStore
       safeBrowsing: boolean,
       noScript: boolean,
       httpsEverywhere: boolean,
-      fingerprintingProtection: boolean
+      fingerprintingProtection: boolean,
+      flash: number, // approval expiration time
     }
   },
   temporarySiteSettings: {

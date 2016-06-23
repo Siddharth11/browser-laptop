@@ -25,8 +25,7 @@
   setTimeout(() => {
     replaceAdobeLinks()
     observer.observe(document.documentElement, {
-      childList: true,
-      attributes: true
+      childList: true
     })
   }, 1000)
 })()
@@ -60,7 +59,6 @@ function isSWF (src) {
  * @return {Array.<Element>}
  */
 function getFlashObjects (elem) {
-  console.log('looking for flash objects', elem)
   let results = [] // Array.<{element: Element, origin: string}>
   Array.from(elem.getElementsByTagName('embed')).forEach((el) => {
     let origin = isSWF(el.getAttribute('src'))
@@ -82,7 +80,6 @@ function getFlashObjects (elem) {
     }
     */
     let origin = isSWF(el.getAttribute('data'))
-    console.log('considering obj', el, origin)
     if (origin) {
       results.push({
         element: el,
@@ -120,7 +117,6 @@ function insertFlashPlaceholders (elem) {
     let pluginRect = el.getBoundingClientRect()
     let height = el.getAttribute('height') || pluginRect.height
     let width = el.getAttribute('width') || pluginRect.width
-    console.log('processing flash object', obj, height, width)
     if (height > minHeight && width > minWidth) {
       let parent = el.parentNode
       if (!parent) {
@@ -128,10 +124,12 @@ function insertFlashPlaceholders (elem) {
       }
       let iframe = document.createElement('iframe')
       iframe.setAttribute('sandbox', 'allow-scripts')
-      iframe.setAttribute('src', placeholderUrl)
+      iframe.setAttribute('src', [placeholderUrl, window.location.origin].join('#'))
       iframe.setAttribute('style', `width: ${width}px; height: ${height}px`)
-      iframe.setAttribute('flash-origin', obj.origin)
       parent.replaceChild(iframe, el)
+    } else {
+      // Note when elements are too small so we can improve the heuristic.
+      console.log('got too-small Flash element', obj, height, width)
     }
   })
 }
@@ -146,9 +144,12 @@ var observer = new window.MutationObserver(function (mutations) {
   })
 })
 
-setTimeout(() => {
-  insertFlashPlaceholders(document.documentElement)
-  observer.observe(document.documentElement, {
-    childList: true
-  })
-}, 1000)
+if (!window.location.search ||
+    !window.location.search.includes('brave_flash_allowed')) {
+  setTimeout(() => {
+    insertFlashPlaceholders(document.documentElement)
+    observer.observe(document.documentElement, {
+      childList: true
+    })
+  }, 1000)
+}

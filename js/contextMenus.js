@@ -663,6 +663,22 @@ const searchSelectionMenuItem = (location) => {
 
 function mainTemplateInit (nodeProps, frame) {
   const template = []
+  if (nodeProps.frameURL && nodeProps.frameURL.startsWith('chrome-extension://mnojpmjdmbbfmejpflffifhffcmidifd/flash-placeholder.html')) {
+    const pageOrigin = siteUtil.getOrigin(nodeProps.pageURL)
+    template.push({
+      label: locale.translation('allowFlashOnce'),
+      click: () => {
+        ipc.send(messages.CHANGE_SITE_SETTING, pageOrigin, 'flash', 1)
+      }
+    }, {
+      label: locale.translation('allowFlashAlways'),
+      click: () => {
+        const expirationTime = Date.now() + 7 * 24 * 3600 * 1000
+        ipc.send(messages.CHANGE_SITE_SETTING, pageOrigin, 'flash', expirationTime)
+      }
+    })
+    return template
+  }
 
   if (nodeProps.linkURL !== '') {
     template.push(openInNewTabMenuItem(nodeProps.linkURL, frame.get('isPrivate'), frame.get('partitionNumber'), frame.get('key')),
