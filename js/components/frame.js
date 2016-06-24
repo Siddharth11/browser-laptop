@@ -106,7 +106,7 @@ class Frame extends ImmutableComponent {
     }
     const activeSiteSettings = getSiteSettingsForHostPattern(this.props.allSiteSettings,
                                                              this.origin)
-    if (typeof activeSiteSettings.get('flash') === 'number') {
+    if (activeSiteSettings && typeof activeSiteSettings.get('flash') === 'number') {
       if (activeSiteSettings.get('flash') < Date.now()) {
         // Expired entry. Remove it.
         ipc.send(messages.CHANGE_SITE_SETTING, this.origin, 'flash', undefined)

@@ -24,10 +24,10 @@ class FlashPlaceholder extends ImmutableComponent {
 
   render () {
     // TODO: Localization doesn't work due to CORS error from inside iframe
-    const cmd = isDarwin ? 'Ctrl-click' : 'Right-click'
-    const flashRightClick = `${cmd} to run Adobe Flash`
+    const cmd = isDarwin ? 'Control-Click' : 'Right-Click'
+    const flashRightClick = `${cmd} to run Adobe Flash Player`
     const flashExpirationText = 'Approvals expire 7 days after last site visit.'
-    const flashSubtext = `on ${this.flashOrigin || 'this site'}.`
+    const flashSubtext = `on ${this.origin || 'this site'}.`
     return <div>
       <div className='flashMainContent'>
         <img src='img/bravePluginAlert.png' />
