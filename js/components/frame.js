@@ -39,8 +39,8 @@ class Frame extends ImmutableComponent {
     this.onFocus = this.onFocus.bind(this)
     // Maps notification message to its callback
     this.notificationCallbacks = {}
-    // Hosts for which Flash is allowed to be detected
-    this.flashAllowedHosts = {}
+    // Origins for which Flash is allowed to be detected
+    this.flashAllowedOrigins = {}
     // Change to DNT requires restart
     this.doNotTrack = getSetting(settings.DO_NOT_TRACK)
   }
@@ -72,6 +72,8 @@ class Frame extends ImmutableComponent {
         this.webview.send(messages.PASSWORD_SITE_DETAILS_UPDATED,
                             this.props.allSiteSettings.filter((setting) => setting.get('savePasswords') === false).toJS())
       }
+    } else if (location === 'about:flash') {
+      this.webview.send(messages.BRAVERY_DEFAULTS_UPDATED, this.props.braveryDefaults)
     }
 
     // send state to about pages
@@ -91,13 +93,16 @@ class Frame extends ImmutableComponent {
     return !!(hack && hack.allowRunningInsecureContent)
   }
 
-  allowRunningPlugins (host) {
-    host = host || urlParse(this.props.frame.get('location')).host
-    if (!host) {
+  allowRunningPlugins (url) {
+    if (!this.props.flashInitialized) {
+      return false
+    }
+    const origin = url ? siteUtil.getOrigin(url) : this.origin
+    if (!origin) {
       return false
     }
     // Check banner-whitelisted hosts
-    if (this.flashAllowedHosts[host]) {
+    if (this.flashAllowedOrigins[origin]) {
       return true
     }
     // Check for at least one CtP allowed on this origin
@@ -105,15 +110,14 @@ class Frame extends ImmutableComponent {
       return false
     }
     const activeSiteSettings = getSiteSettingsForHostPattern(this.props.allSiteSettings,
-                                                             this.origin)
+                                                             origin)
     if (activeSiteSettings && typeof activeSiteSettings.get('flash') === 'number') {
       if (activeSiteSettings.get('flash') < Date.now()) {
         // Expired entry. Remove it.
-        ipc.send(messages.CHANGE_SITE_SETTING, this.origin, 'flash', undefined)
+        ipc.send(messages.CHANGE_SITE_SETTING, origin, 'flash', undefined)
       }
       return true
     }
-
     return false
   }
 
@@ -499,18 +503,17 @@ class Frame extends ImmutableComponent {
       windowActions.loadUrl(this.props.frame, parsedUrl.format())
     }
 
-    const interceptFlash = (url) => {
+    const interceptFlash = (adobeUrl) => {
       this.webview.stop()
       // Generate a random string that is unlikely to collide. Not
       // cryptographically random.
       const nonce = Math.random().toString()
-      if (this.props.flashEnabled) {
+      if (this.props.flashInitialized) {
         const parsedUrl = urlParse(this.props.frame.get('location'))
-        const host = parsedUrl.host
-        if (!host) {
+        if (!this.origin) {
           return
         }
-        const message = `Allow ${host} to run Flash Player?`
+        const message = `Allow ${this.origin} to run Flash Player?`
         // Show Flash notification bar
         appActions.showMessageBox({
           buttons: [locale.translation('deny'), locale.translation('allow')],
@@ -521,7 +524,7 @@ class Frame extends ImmutableComponent {
         })
         this.notificationCallbacks[message] = (buttonIndex) => {
           if (buttonIndex === 1) {
-            this.flashAllowedHosts[host] = true
+            this.flashAllowedOrigins[this.origin] = true
             reloadWithFlashAllowed(parsedUrl)
           } else {
             appActions.hideMessageBox(message)
@@ -529,7 +532,7 @@ class Frame extends ImmutableComponent {
         }
       } else {
         ipc.send(messages.SHOW_FLASH_INSTALLED_MESSAGE)
-        windowActions.loadUrl(this.props.frame, url)
+        windowActions.loadUrl(this.props.frame, adobeUrl)
       }
       ipc.once(messages.NOTIFICATION_RESPONSE + nonce, (e, msg, buttonIndex) => {
         const cb = this.notificationCallbacks[msg]
@@ -551,11 +554,15 @@ class Frame extends ImmutableComponent {
         interceptFlash(e.url)
       }
       // Make sure a page that is trying to run Flash is actually allowed
-      const pluginsAllowed = this.allowRunningPlugins(parsedUrl.host)
-      if (parsedUrl.search && parsedUrl.search.includes('brave_flash_allowed') && !pluginsAllowed) {
-        reloadWithFlashDisallowed(parsedUrl)
-      } else if (pluginsAllowed) {
+      const pluginsAllowed = this.allowRunningPlugins(e.url)
+      if (parsedUrl.search && parsedUrl.search.includes('brave_flash_allowed')) {
+        if (!pluginsAllowed) {
+          reloadWithFlashDisallowed(parsedUrl)
+          return
+        }
+      } else if (parsedUrl.host && pluginsAllowed) {
         reloadWithFlashAllowed(parsedUrl)
+        return
       }
       if (e.isMainFrame && !e.isErrorPage && !e.isFrameSrcDoc) {
         windowActions.onWebviewLoadStart(this.props.frame, e.url)
@@ -739,8 +746,7 @@ class Frame extends ImmutableComponent {
   }
 
   get origin () {
-    const parsedUrl = urlParse(this.props.frame.get('location'))
-    return `${parsedUrl.protocol}//${parsedUrl.host}`
+    return siteUtil.getOrigin(this.props.frame.get('location'))
   }
 
   onFocus () {

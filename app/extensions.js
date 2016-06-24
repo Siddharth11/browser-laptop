@@ -71,7 +71,9 @@ let generateBraveManifest = () => {
         ],
         include_globs: [
           getIndexHTML(),
+          getAppUrl('flash-placeholder.html'),
           getAppUrl('about-*.html'),
+          getAppUrl('flash-placeholder.html') + '#*',
           getAppUrl('about-*.html') + '#*'
         ],
         exclude_globs: [
