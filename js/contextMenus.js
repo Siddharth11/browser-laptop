@@ -663,7 +663,7 @@ const searchSelectionMenuItem = (location) => {
 
 function mainTemplateInit (nodeProps, frame) {
   const template = []
-  if (nodeProps.frameURL && nodeProps.frameURL.startsWith('chrome-extension://mnojpmjdmbbfmejpflffifhffcmidifd/flash-placeholder.html')) {
+  if (nodeProps.frameURL && nodeProps.frameURL.startsWith('chrome-extension://mnojpmjdmbbfmejpflffifhffcmidifd/about-flash.html')) {
     const pageOrigin = siteUtil.getOrigin(nodeProps.pageURL)
     template.push({
       label: locale.translation('allowFlashOnce'),

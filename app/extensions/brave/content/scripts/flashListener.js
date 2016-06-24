@@ -30,7 +30,7 @@
   }, 1000)
 })()
 
-const placeholderUrl = 'chrome-extension://mnojpmjdmbbfmejpflffifhffcmidifd/flash-placeholder.html'
+const placeholderUrl = 'chrome-extension://mnojpmjdmbbfmejpflffifhffcmidifd/about-flash.html'
 
 /**
  * Whether a src is a .swf file.
